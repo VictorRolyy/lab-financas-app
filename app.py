@@ -114,4 +114,4 @@ if st.sidebar.button("Rodar Análise"):
             # Indicadores (último valor do treino)
             try:
                 curr_rsi = calculate_rsi(p).iloc[-1]
-                curr_bb = calculate_bollinger_width(p).iloc[-1
+                curr_bb = calculate_bollinger_width(p).iloc[-1]
