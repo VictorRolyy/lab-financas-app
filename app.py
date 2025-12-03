@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Lab Finanças - Victor Hugo", layout="wide")
 
-st.title("A1 - Lab Finanças: Otimização de Portfólio (K-Means vs Markowitz)")
+st.title("Lab Finanças: Otimização de Portfólio (K-Means vs Markowitz)")
 st.markdown("**Aluno:** Victor Hugo Lemos")
 
 # --- BARRA LATERAL (Parâmetros) ---
