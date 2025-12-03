@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Lab Finanças - Victor Hugo", layout="wide")
-np.random.seed(42) 
+np.random.seed(42) # Garante resultados idênticos ao Colab
 
 st.title("A1 - Lab Finanças: Otimização de Portfólio")
 st.markdown("**Aluno:** Victor Hugo Lemos")
@@ -22,7 +22,7 @@ risk_free_annual = st.sidebar.number_input("Taxa Livre de Risco Anual (%)", valu
 test_days = st.sidebar.number_input("Dias de Backtest (Out-of-Sample)", value=252, step=1)
 periodo_download = st.sidebar.selectbox("Período de Dados Históricos", ["2y", "5y", "10y"], index=1)
 
-# Ativos 
+# Ativos (Cópia exata do Notebook)
 mag7 = ["AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA"]
 us_indices = ["SPY","QQQ","IWM"]
 intl = ["VXUS","IEFA","EEM","ACWX"]
@@ -31,7 +31,7 @@ bonds = ["TLT","LQD","HYG"]
 alts = ["GLD","VNQ","DBC"]
 TICKERS = list(set(mag7 + us_indices + intl + sectors + bonds + alts))
 
-# --- FUNÇÕES (Cópia exata do Notebook) ---
+# --- FUNÇÕES DE CÁLCULO ---
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -56,6 +56,16 @@ def sharpe_ratio_annual(daily_returns, rf):
     rf_daily = (1 + rf)**(1/252) - 1
     excess = daily_returns - rf_daily
     return (excess.mean() / (daily_returns.std() + 1e-12)) * np.sqrt(252)
+
+def calculate_max_drawdown(daily_returns):
+    # Reconstrói a curva de patrimônio
+    cum_rets = (1 + daily_returns).cumprod()
+    # Calcula o pico histórico acumulado até cada dia
+    peak = cum_rets.cummax()
+    # Calcula a queda percentual em relação ao pico
+    drawdown = (cum_rets - peak) / peak
+    # Pega a pior queda (o valor mínimo)
+    return drawdown.min()
 
 def solve_max_sharpe(mu, cov, rf):
     n = len(mu)
@@ -90,7 +100,7 @@ if st.sidebar.button("Rodar Análise Completa"):
         # 1. Carregar Dados
         prices = load_data(TICKERS, periodo_download)
         
-        # Dividir Treino e Teste (Igual Etapa 7 do Notebook)
+        # Dividir Treino e Teste
         if len(prices) < test_days * 2:
             st.error("Dados insuficientes.")
             st.stop()
@@ -144,20 +154,19 @@ if st.sidebar.button("Rodar Análise Completa"):
             * **Proteção:** Bonds (TLT, LQD) e Ouro (GLD).
             """)
             st.write("### Base de Dados Calculada (Treino)")
-            # Fix para evitar erro de formatação
+            # Fix de formatação: Indexando pelo Ticker
             st.dataframe(metrics.set_index("Ticker").style.format("{:.2f}"))
 
         # === TAB 2: TÉCNICA A (K-MEANS) ===
         with tab2:
             st.markdown("### Clusterização (Machine Learning)")
             
-            # Preparar dados
             scaler = StandardScaler()
             X = scaler.fit_transform(metrics[["Ret","Vol","Sharpe","RSI","BB"]].fillna(0))
             
             col_a, col_b = st.columns(2)
             
-            # Gráfico do Cotovelo (Igual Notebook)
+            # Gráfico do Cotovelo
             with col_a:
                 st.write("**Método do Cotovelo**")
                 inertias = []
@@ -174,7 +183,7 @@ if st.sidebar.button("Rodar Análise Completa"):
                 ax_el.grid(True, alpha=0.3)
                 st.pyplot(fig_elbow)
 
-            # Gráfico Silhouette (Igual Notebook)
+            # Gráfico Silhouette
             with col_b:
                 st.write("**Silhouette Score**")
                 sil_scores = []
@@ -196,17 +205,16 @@ if st.sidebar.button("Rodar Análise Completa"):
             
             st.info(f"O algoritmo definiu **k={best_k}** como o número ideal de clusters.")
             
-            # Rodar K-Means Final
+            # K-Means Final
             kmeans = KMeans(n_clusters=best_k, n_init=50, random_state=42)
             metrics["Cluster"] = kmeans.fit_predict(X)
             
-            # Selecionar Ativos (1 por cluster)
+            # Seleção
             sel_a = []
             for c in sorted(metrics["Cluster"].unique()):
                 top = metrics[metrics["Cluster"]==c].sort_values("Sharpe", ascending=False).iloc[0]["Ticker"]
                 sel_a.append(top)
             
-            # Completar até 5 se necessário
             if len(sel_a) < 5:
                 rest = metrics[~metrics["Ticker"].isin(sel_a)].sort_values("Sharpe", ascending=False)
                 sel_a.extend(rest["Ticker"].head(5 - len(sel_a)).tolist())
@@ -218,11 +226,8 @@ if st.sidebar.button("Rodar Análise Completa"):
             fig_scat, ax_scat = plt.subplots(figsize=(8,5))
             scatter = ax_scat.scatter(metrics["Vol"], metrics["Ret"], c=metrics["Cluster"], cmap="viridis", s=100, alpha=0.8)
             plt.colorbar(scatter, label="Cluster")
-            
-            # Destaque para selecionadas
             sel_data = metrics[metrics["Ticker"].isin(sel_a)]
             ax_scat.scatter(sel_data["Vol"], sel_data["Ret"], color='red', marker='*', s=200, label="Selecionadas")
-            
             ax_scat.set_xlabel("Volatilidade")
             ax_scat.set_ylabel("Retorno")
             ax_scat.legend()
@@ -233,7 +238,6 @@ if st.sidebar.button("Rodar Análise Completa"):
         with tab3:
             st.markdown("### Otimização de Markowitz (Max Sharpe)")
             
-            # Usando Top 10 Sharpe para otimizar (Heurística do Notebook)
             top_10 = metrics.sort_values("Sharpe", ascending=False).head(10)["Ticker"].tolist()
             mu_sub = train_rets[top_10].mean() * 252
             cov_sub = train_rets[top_10].cov() * 252
@@ -249,7 +253,6 @@ if st.sidebar.button("Rodar Análise Completa"):
             
             st.success(f"**Carteira Selecionada (Técnica B):** {', '.join(sel_b)}")
             
-            # Gráfico de Pesos
             fig_bar, ax_bar = plt.subplots(figsize=(8,4))
             ax_bar.bar(df_weights["Ticker"], df_weights["Peso"], color='orange')
             ax_bar.set_title("Pesos Alocados (Top 5)")
@@ -258,21 +261,18 @@ if st.sidebar.button("Rodar Análise Completa"):
         # === TAB 4: BACKTEST ===
         with tab4:
             st.markdown("### Validação Out-of-Sample (O Verdadeiro Teste)")
-            st.write(f"Os modelos foram treinados com dados até **{split_date.date()}**. O gráfico abaixo mostra como eles performaram DEPOIS dessa data (dados que eles não viram).")
+            st.write(f"Os modelos foram treinados com dados até **{split_date.date()}**. O gráfico abaixo mostra como eles performaram DEPOIS dessa data.")
             
-            # Calcular Performance no Teste
-            # Téc A (Pesos Iguais)
+            # Calcular Performance
             r_test_a = test_rets[sel_a].mean(axis=1).fillna(0)
-            # Téc B (Pesos Otimizados)
             r_test_b = test_rets[sel_b].mul(weights_b, axis=1).sum(axis=1).fillna(0)
-            # Benchmark (Média Geral)
             r_test_bench = test_rets.mean(axis=1).fillna(0)
             
             cum_a = (1 + r_test_a).cumprod()
             cum_b = (1 + r_test_b).cumprod()
             cum_bench = (1 + r_test_bench).cumprod()
             
-            # --- Gráfico 1: ZOOM (Só Teste) ---
+            # Gráfico ZOOM
             st.write("#### 1. Zoom no Período de Teste")
             fig_zoom, ax_z = plt.subplots(figsize=(10, 5))
             ax_z.plot(cum_a.index, cum_a, label="Téc A (Cluster)")
@@ -282,11 +282,8 @@ if st.sidebar.button("Rodar Análise Completa"):
             ax_z.grid(True, alpha=0.3)
             st.pyplot(fig_zoom)
             
-            # --- Gráfico 2: HISTÓRICO COMPLETO ---
+            # Gráfico FULL HISTORY
             st.write("#### 2. Histórico Completo (Treino + Teste)")
-            
-            # Reconstruir histórico desde o inicio (PRICES)
-            # Nota: Usamos as carteiras selecionadas no treino e aplicamos desde o inicio
             full_ret_a = prices[sel_a].pct_change().mean(axis=1).fillna(0)
             full_ret_b = prices[sel_b].pct_change().mul(weights_b, axis=1).sum(axis=1).fillna(0)
             full_ret_bench = prices.pct_change().mean(axis=1).fillna(0)
@@ -299,21 +296,30 @@ if st.sidebar.button("Rodar Análise Completa"):
             ax_f.plot(full_cum_a.index, full_cum_a, label="Téc A", linewidth=1.5)
             ax_f.plot(full_cum_b.index, full_cum_b, label="Téc B", linewidth=1.5)
             ax_f.plot(full_cum_bench.index, full_cum_bench, label="Benchmark", color='gray', linestyle='--', alpha=0.5)
-            
-            # Linha divisória
             ax_f.axvline(x=split_date, color='red', linestyle=':', linewidth=2, label="Divisão Treino/Teste")
             ax_f.axvspan(split_date, full_cum_a.index[-1], color='gray', alpha=0.1)
-            
             ax_f.legend()
             ax_f.grid(True, alpha=0.3)
             ax_f.set_title("Performance Histórica Completa")
             st.pyplot(fig_full)
             
-            # Métricas Finais
+            # --- MÉTRICAS FINAIS COM DRAWDOWN ---
+            st.write("#### Resumo de Performance (Teste)")
+            
+            # Cálculo dos Drawdowns
+            dd_a = calculate_max_drawdown(r_test_a)
+            dd_b = calculate_max_drawdown(r_test_b)
+            dd_bench = calculate_max_drawdown(r_test_bench)
+            
             col1, col2, col3 = st.columns(3)
-            col1.metric("Retorno Teste (Cluster)", f"{(cum_a.iloc[-1]-1)*100:.2f}%")
-            col2.metric("Retorno Teste (Markowitz)", f"{(cum_b.iloc[-1]-1)*100:.2f}%")
-            col3.metric("Retorno Teste (Benchmark)", f"{(cum_bench.iloc[-1]-1)*100:.2f}%")
+            col1.metric("Retorno Total (Cluster)", f"{(cum_a.iloc[-1]-1)*100:.2f}%")
+            col2.metric("Retorno Total (Markowitz)", f"{(cum_b.iloc[-1]-1)*100:.2f}%")
+            col3.metric("Retorno Total (Benchmark)", f"{(cum_bench.iloc[-1]-1)*100:.2f}%")
+            
+            col4, col5, col6 = st.columns(3)
+            col4.metric("Max Drawdown (Cluster)", f"{dd_a*100:.2f}%")
+            col5.metric("Max Drawdown (Markowitz)", f"{dd_b*100:.2f}%")
+            col6.metric("Max Drawdown (Benchmark)", f"{dd_bench*100:.2f}%")
 
 else:
     st.info("👆 Clique no botão 'Rodar Análise Completa' na barra lateral para iniciar.")
