@@ -17,7 +17,8 @@ st.title("A1 - Lab Finanças: Otimização de Portfólio")
 st.markdown("**Aluno:** Victor Hugo Lemos")
 
 # --- BARRA LATERAL ---
-st.sidebar.header("Parâmetros do Modelo")
+st.sidebar.header("Parâmetros do Investidor")
+investment_amount = st.sidebar.number_input("Valor a Investir (US$)", min_value=100.0, value=10000.0, step=100.0)
 risk_free_annual = st.sidebar.number_input("Taxa Livre de Risco Anual (%)", value=4.0, step=0.1) / 100
 test_days = st.sidebar.number_input("Dias de Backtest (Out-of-Sample)", value=252, step=1)
 periodo_download = st.sidebar.selectbox("Período de Dados Históricos", ["2y", "5y", "10y"], index=1)
@@ -139,7 +140,7 @@ if st.sidebar.button("Rodar Análise Completa"):
             "1. Introdução e Dados", 
             "2. Técnica A (K-Means)", 
             "3. Técnica B (Markowitz)", 
-            "4. Backtest (Validação)"
+            "4. Backtest e Resultado"
         ])
         
         # === TAB 1: JUSTIFICATIVA ===
@@ -154,7 +155,6 @@ if st.sidebar.button("Rodar Análise Completa"):
             * **Proteção:** Bonds (TLT, LQD) e Ouro (GLD).
             """)
             st.write("### Base de Dados Calculada (Treino)")
-            # Fix de formatação: Indexando pelo Ticker
             st.dataframe(metrics.set_index("Ticker").style.format("{:.2f}"))
 
         # === TAB 2: TÉCNICA A (K-MEANS) ===
@@ -260,7 +260,7 @@ if st.sidebar.button("Rodar Análise Completa"):
 
         # === TAB 4: BACKTEST ===
         with tab4:
-            st.markdown("### Validação Out-of-Sample (O Verdadeiro Teste)")
+            st.markdown("### Validação e Resultado Financeiro")
             st.write(f"Os modelos foram treinados com dados até **{split_date.date()}**. O gráfico abaixo mostra como eles performaram DEPOIS dessa data.")
             
             # Calcular Performance
@@ -273,53 +273,45 @@ if st.sidebar.button("Rodar Análise Completa"):
             cum_bench = (1 + r_test_bench).cumprod()
             
             # Gráfico ZOOM
-            st.write("#### 1. Zoom no Período de Teste")
+            st.write("#### Performance Out-of-Sample (Teste)")
             fig_zoom, ax_z = plt.subplots(figsize=(10, 5))
-            ax_z.plot(cum_a.index, cum_a, label="Téc A (Cluster)")
-            ax_z.plot(cum_b.index, cum_b, label="Téc B (Markowitz)")
+            ax_z.plot(cum_a.index, cum_a, label="Cluster")
+            ax_z.plot(cum_b.index, cum_b, label="Markowitz")
             ax_z.plot(cum_bench.index, cum_bench, label="Benchmark", linestyle="--", color="gray")
             ax_z.legend()
             ax_z.grid(True, alpha=0.3)
             st.pyplot(fig_zoom)
             
-            # Gráfico FULL HISTORY
-            st.write("#### 2. Histórico Completo (Treino + Teste)")
-            full_ret_a = prices[sel_a].pct_change().mean(axis=1).fillna(0)
-            full_ret_b = prices[sel_b].pct_change().mul(weights_b, axis=1).sum(axis=1).fillna(0)
-            full_ret_bench = prices.pct_change().mean(axis=1).fillna(0)
+            # --- RESULTADO FINANCEIRO (RETORNO DO INVESTIDOR) ---
+            st.markdown("---")
+            st.subheader(f"💰 Simulação para Investimento de US$ {investment_amount:,.2f}")
             
-            full_cum_a = (1 + full_ret_a).cumprod()
-            full_cum_b = (1 + full_ret_b).cumprod()
-            full_cum_bench = (1 + full_ret_bench).cumprod()
+            # Cálculos Finais
+            final_val_a = investment_amount * cum_a.iloc[-1]
+            final_val_b = investment_amount * cum_b.iloc[-1]
+            final_val_bench = investment_amount * cum_bench.iloc[-1]
             
-            fig_full, ax_f = plt.subplots(figsize=(12, 6))
-            ax_f.plot(full_cum_a.index, full_cum_a, label="Téc A", linewidth=1.5)
-            ax_f.plot(full_cum_b.index, full_cum_b, label="Téc B", linewidth=1.5)
-            ax_f.plot(full_cum_bench.index, full_cum_bench, label="Benchmark", color='gray', linestyle='--', alpha=0.5)
-            ax_f.axvline(x=split_date, color='red', linestyle=':', linewidth=2, label="Divisão Treino/Teste")
-            ax_f.axvspan(split_date, full_cum_a.index[-1], color='gray', alpha=0.1)
-            ax_f.legend()
-            ax_f.grid(True, alpha=0.3)
-            ax_f.set_title("Performance Histórica Completa")
-            st.pyplot(fig_full)
+            lucro_a = final_val_a - investment_amount
+            lucro_b = final_val_b - investment_amount
+            lucro_bench = final_val_bench - investment_amount
             
-            # --- MÉTRICAS FINAIS COM DRAWDOWN ---
-            st.write("#### Resumo de Performance (Teste)")
-            
-            # Cálculo dos Drawdowns
             dd_a = calculate_max_drawdown(r_test_a)
             dd_b = calculate_max_drawdown(r_test_b)
-            dd_bench = calculate_max_drawdown(r_test_bench)
             
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Retorno Total (Cluster)", f"{(cum_a.iloc[-1]-1)*100:.2f}%")
-            col2.metric("Retorno Total (Markowitz)", f"{(cum_b.iloc[-1]-1)*100:.2f}%")
-            col3.metric("Retorno Total (Benchmark)", f"{(cum_bench.iloc[-1]-1)*100:.2f}%")
+            # Exibição em Cartões
+            col1, col2 = st.columns(2)
             
-            col4, col5, col6 = st.columns(3)
-            col4.metric("Max Drawdown (Cluster)", f"{dd_a*100:.2f}%")
-            col5.metric("Max Drawdown (Markowitz)", f"{dd_b*100:.2f}%")
-            col6.metric("Max Drawdown (Benchmark)", f"{dd_bench*100:.2f}%")
+            with col1:
+                st.markdown("#### Técnica A (Cluster)")
+                st.metric("Saldo Final", f"US$ {final_val_a:,.2f}", delta=f"{lucro_a:,.2f}")
+                st.metric("Risco Máximo (Drawdown)", f"{dd_a*100:.2f}%")
+            
+            with col2:
+                st.markdown("#### Técnica B (Markowitz)")
+                st.metric("Saldo Final", f"US$ {final_val_b:,.2f}", delta=f"{lucro_b:,.2f}")
+                st.metric("Risco Máximo (Drawdown)", f"{dd_b*100:.2f}%")
+            
+            st.info(f"Comparativo Benchmark: Se você tivesse comprado a média do mercado, teria US$ {final_val_bench:,.2f}.")
 
 else:
     st.info("👆 Clique no botão 'Rodar Análise Completa' na barra lateral para iniciar.")
