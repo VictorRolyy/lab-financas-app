@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Lab Finanças - Victor Hugo", layout="wide")
 np.random.seed(42) # Garante resultados idênticos
 
-st.title("A1 - Lab Finanças: Otimização de Portfólio")
+st.title("Lab Finanças: Escolha de Portfólio")
 st.markdown("**Aluno:** Victor Hugo Lemos")
 
 # --- BARRA LATERAL ---
