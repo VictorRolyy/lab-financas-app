@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Lab Finanças - Victor Hugo", layout="wide")
-np.random.seed(42) # Garante resultados idênticos ao Colab
+np.random.seed(42) 
 
 st.title("A1 - Lab Finanças: Otimização de Portfólio")
 st.markdown("**Aluno:** Victor Hugo Lemos")
@@ -22,7 +22,7 @@ risk_free_annual = st.sidebar.number_input("Taxa Livre de Risco Anual (%)", valu
 test_days = st.sidebar.number_input("Dias de Backtest (Out-of-Sample)", value=252, step=1)
 periodo_download = st.sidebar.selectbox("Período de Dados Históricos", ["2y", "5y", "10y"], index=1)
 
-# Ativos (Cópia exata do Notebook)
+# Ativos 
 mag7 = ["AAPL","MSFT","NVDA","GOOGL","AMZN","META","TSLA"]
 us_indices = ["SPY","QQQ","IWM"]
 intl = ["VXUS","IEFA","EEM","ACWX"]
