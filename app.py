@@ -134,7 +134,8 @@ if st.sidebar.button("Rodar Análise"):
             - **Internacional:** EEM (Emergentes), VEA (Desenvolvidos).
             - **Alternativos:** GLD (Ouro), VNQ (Imóveis).
             """)
-            st.dataframe(metrics.style.format("{:.2f}"))
+            st.dataframe(metrics.set_index("Ticker").style.format("{:.2f}"))
+            
             
         # --- TÉCNICA A: K-Means ---
         with tab2:
