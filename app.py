@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="Lab Finanças - Victor Hugo", layout="wide")
 np.random.seed(42) # Garante resultados idênticos
 
-st.title("Lab Finanças: Escolha de Portfólio")
+st.title("A1 - Lab Finanças: Otimização de Portfólio")
 st.markdown("**Aluno:** Victor Hugo Lemos")
 
 # --- BARRA LATERAL ---
@@ -121,21 +121,11 @@ if st.sidebar.button("Rodar Análise Completa"):
         metrics = pd.DataFrame(summary, columns=["Ticker","Ret","Vol","Sharpe","RSI","BB"])
         
         # 3. Processamento das Técnicas
-        # K-Means Prep
+        # K-Means
         scaler = StandardScaler()
         X = scaler.fit_transform(metrics[["Ret","Vol","Sharpe","RSI","BB"]].fillna(0))
-        
-        # Lógica de seleção do melhor K (Silhouette)
-        sil_scores_check = []
-        k_values = range(2, 11)
-        for k in k_values:
-            km_temp = KMeans(n_clusters=k, n_init=10, random_state=42)
-            labels_temp = km_temp.fit_predict(X)
-            sil_scores_check.append(silhouette_score(X, labels_temp))
-        
-        best_k = k_values[np.argmax(sil_scores_check)]
-        
-        # Rodar Final
+        sil_scores = [silhouette_score(X, KMeans(n_clusters=k, n_init=10, random_state=42).fit_predict(X)) for k in range(2, 10)]
+        best_k = range(2, 10)[np.argmax(sil_scores)]
         kmeans = KMeans(n_clusters=best_k, n_init=50, random_state=42)
         metrics["Cluster"] = kmeans.fit_predict(X)
         
@@ -158,7 +148,7 @@ if st.sidebar.button("Rodar Análise Completa"):
         sel_b = df_weights["Ticker"].tolist()
         weights_b = df_weights["Peso"].values
         
-        # 4. Cálculo de Curvas
+        # 4. Cálculo de Curvas (Performance)
         r_test_a = test_rets[sel_a].mean(axis=1).fillna(0)
         r_test_b = test_rets[sel_b].mul(weights_b, axis=1).sum(axis=1).fillna(0)
         r_test_bench = test_rets.mean(axis=1).fillna(0)
@@ -188,7 +178,6 @@ if st.sidebar.button("Rodar Análise Completa"):
             st.markdown("### Definição Matemática dos Clusters")
             st.write("O algoritmo testa agrupar os ativos em 2 até 10 grupos. Escolhemos o número que maximiza a coesão (Silhouette).")
             
-            # Recalcular inércias para plotagem (para exibir os gráficos)
             inertias = []
             sil_scores = []
             k_range = range(2, 11)
@@ -228,9 +217,67 @@ if st.sidebar.button("Rodar Análise Completa"):
             st.pyplot(fig)
 
         with tab3:
-            st.markdown("### Markowitz (Max Sharpe)")
-            st.success(f"Carteira: {', '.join(sel_b)}")
+            st.markdown("### Otimização de Markowitz (Max Sharpe)")
+            
+            # --- NOVIDADE: MONTE CARLO (Fronteira Eficiente) ---
+            st.markdown("#### 1. Fronteira Eficiente (Simulação)")
+            st.write("Simulamos 2.000 portfólios aleatórios com os ativos pré-selecionados para mostrar onde sua carteira (Estrela) se posiciona.")
+            
+            # Gerar portfolios aleatórios
+            n_sim = 2000
+            n_assets = len(top_10)
+            sim_rets = []
+            sim_vols = []
+            
+            # Pega médias e covar dos top 10
+            mu_mc = mu_sub.values
+            cov_mc = cov_sub.values
+            
+            for _ in range(n_sim):
+                w = np.random.random(n_assets)
+                w /= np.sum(w)
+                r = np.dot(w, mu_mc)
+                v = np.sqrt(np.dot(w, np.dot(cov_mc, w)))
+                sim_rets.append(r)
+                sim_vols.append(v)
+            
+            # Calcula métricas da carteira otimizada (Estrela)
+            # Reconstroi pesos full (top 10)
+            w_star_full = np.zeros(n_assets)
+            for i, tick in enumerate(top_10):
+                if tick in sel_b:
+                    # Acha o peso correspondente
+                    idx_b = sel_b.index(tick)
+                    w_star_full[i] = weights_b[idx_b]
+            
+            # Recalcula retorno/risco da otimizada
+            ret_opt = np.dot(w_star_full, mu_mc)
+            vol_opt = np.sqrt(np.dot(w_star_full, np.dot(cov_mc, w_star_full)))
+
+            # Plot Fronteira
+            fig_ef, ax_ef = plt.subplots(figsize=(8,5))
+            sc = ax_ef.scatter(sim_vols, sim_rets, c=(np.array(sim_rets)-risk_free_annual)/np.array(sim_vols), cmap='viridis', s=10, alpha=0.5)
+            plt.colorbar(sc, label="Sharpe Ratio")
+            
+            # Estrela
+            ax_ef.scatter(vol_opt, ret_opt, c='red', s=200, marker='*', label="Max Sharpe (Otimizado)")
+            
+            ax_ef.set_xlabel("Volatilidade Esperada (Risco)")
+            ax_ef.set_ylabel("Retorno Esperado")
+            ax_ef.set_title(f"Fronteira Eficiente (Ativos: {', '.join(top_10)})")
+            ax_ef.legend()
+            ax_ef.grid(True, alpha=0.3)
+            st.pyplot(fig_ef)
+
+            st.markdown("---")
+            st.markdown("#### 2. Alocação Final de Pesos")
+            st.success(f"Carteira Final: {', '.join(sel_b)}")
             st.bar_chart(df_weights.set_index("Ticker"))
+            
+            st.markdown("#### 3. Correlação dos Ativos")
+            st.write("Matriz de correlação dos Top 5 ativos. Cores claras indicam alta correlação (risco concentrado).")
+            corr_matrix = train_rets[sel_b].corr()
+            st.dataframe(corr_matrix.style.background_gradient(cmap="coolwarm").format("{:.2f}"))
 
         with tab4:
             st.markdown("### Validação Técnica (Backtest)")
